@@ -1,7 +1,8 @@
-import { weatherAgent } from "./agent/weather-agent";
+import { weatherAgent } from "@/agent/weather-agent";
+import { printStream } from "@/util/print-stream";
 
-const { text } = await weatherAgent.generate({
+const result = weatherAgent.stream({
   prompt: "What is the weather in Tokyo?",
 });
 
-console.log(text);
+await printStream(result);
