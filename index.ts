@@ -5,9 +5,7 @@ import { parseArgs } from "util";
 const { values, positionals } = parseArgs({
   args: Bun.argv,
   options: {
-    agent: {
-      type: "string",
-    },
+    agent: { type: "string" },
   },
   strict: true,
   allowPositionals: true,
@@ -21,6 +19,7 @@ const agent = (await import(agentPath)).default as Agent<
   unknown
 >;
 
-const result = agent.stream({ prompt: positionals[2]! });
+const query = positionals.slice(2).join(" ");
+const result = agent.stream({ prompt: query });
 
 await printStream(result);
