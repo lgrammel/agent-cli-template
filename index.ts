@@ -19,7 +19,6 @@ const agent = (await import(agentPath)).default as Agent<
   unknown
 >;
 
-const query = positionals.slice(2).join(" ");
-const result = agent.stream({ prompt: query });
+const result = agent.stream({ prompt: positionals[2]! });
 
 await printStream(result);
