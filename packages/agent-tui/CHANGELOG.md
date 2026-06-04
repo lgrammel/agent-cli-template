@@ -1,5 +1,11 @@
 # @lgrammel/agent-tui
 
+## 0.4.7
+
+### Patch Changes
+
+- 852b8ac: Use conventional TUI shortcuts for repaint, exit, and page scrolling.
+
 ## 0.4.6
 
 ### Patch Changes
