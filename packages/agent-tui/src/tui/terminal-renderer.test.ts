@@ -33,10 +33,13 @@ describe("parseKey", () => {
   it("decodes terminal control keys", () => {
     expect(parseKey(Buffer.from("\x1B[A"))).toEqual({ type: "up" });
     expect(parseKey(Buffer.from("\x1B[B"))).toEqual({ type: "down" });
+    expect(parseKey(Buffer.from("\x1B[5~"))).toEqual({ type: "page-up" });
+    expect(parseKey(Buffer.from("\x1B[6~"))).toEqual({ type: "page-down" });
     expect(parseKey(Buffer.from("\u007f"))).toEqual({ type: "backspace" });
     expect(parseKey(Buffer.from("\r"))).toEqual({ type: "enter" });
-    expect(parseKey(Buffer.from("\u0012"))).toEqual({ type: "ctrl-r" });
+    expect(parseKey(Buffer.from("\u000c"))).toEqual({ type: "ctrl-l" });
     expect(parseKey(Buffer.from("\u0003"))).toEqual({ type: "ctrl-c" });
+    expect(parseKey(Buffer.from("\x1B"))).toEqual({ type: "escape" });
   });
 
   it("keeps printable input as character data", () => {
@@ -618,13 +621,13 @@ describe("TerminalRenderer", () => {
     await expect(promptPromise).resolves.toBe("");
   });
 
-  it("fully repaints unchanged lines when Ctrl+R is pressed", async () => {
+  it("fully repaints unchanged lines when Ctrl+L is pressed", async () => {
     const input = createInput();
     const output = createOutput();
     const renderer = new TerminalRenderer({ input, output });
     const promptPromise = renderer.readPrompt({ title: "Test" });
 
-    input.emit("data", Buffer.from("\u0012"));
+    input.emit("data", Buffer.from("\u000c"));
 
     expect(output.chunks.at(-1)).toContain("\x1b[H\x1b[2J");
     expect(stripAnsi(output.chunks.at(-1) ?? "")).toContain("┌ Test ");

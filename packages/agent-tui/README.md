@@ -55,8 +55,9 @@ await runAgentTUI({
 - `Enter`: submit prompt
 - `y` / `n`: approve or reject tool calls
 - `Up` / `Down`: scroll transcript
-- `Ctrl+R`: repaint
-- `Ctrl+C`: exit
+- `PageUp` / `PageDown`: scroll transcript by a full page
+- `Ctrl+L`: repaint
+- `Esc` / `Ctrl+C`: exit
 
 ## API
 

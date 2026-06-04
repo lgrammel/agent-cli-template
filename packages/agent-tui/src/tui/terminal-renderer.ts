@@ -69,8 +69,11 @@ export type TerminalKey =
   | { type: "enter" }
   | { type: "up" }
   | { type: "down" }
-  | { type: "ctrl-r" }
+  | { type: "page-up" }
+  | { type: "page-down" }
+  | { type: "ctrl-l" }
   | { type: "ctrl-c" }
+  | { type: "escape" }
   | { type: "ignore" };
 
 type ChatSectionKind = "user" | "assistant" | "reasoning" | "tool" | "error";
@@ -127,10 +130,12 @@ const sectionStyles: Record<ChatSectionKind, { color: string; border: string }> 
 };
 
 const inputCursorBlinkMs = 500;
-const processingStatus = "Processing input... ↑/↓ scroll · Ctrl+C quit";
-const processingToolResultsStatus = "Processing tool results... ↑/↓ scroll · Ctrl+C quit";
-const streamingStatus = "Streaming... ↑/↓ scroll · Ctrl+C quit";
-const executingToolsStatus = "Executing tools... ↑/↓ scroll · Ctrl+C quit";
+const activeControls = "↑/↓ · PgUp/PgDn · Esc/Ctrl+C";
+const doneControls = "↑/↓ · PgUp/PgDn · q/Esc/Ctrl+C";
+const processingStatus = `Processing input... ${activeControls}`;
+const processingToolResultsStatus = `Processing tool results... ${activeControls}`;
+const streamingStatus = `Streaming... ${activeControls}`;
+const executingToolsStatus = `Executing tools... ${activeControls}`;
 
 export class TerminalRenderer {
   readonly #input: TerminalInput;
@@ -174,7 +179,7 @@ export class TerminalRenderer {
     this.#start(options);
     this.#inputActive = true;
     this.#inputText = options?.initialPrompt ?? "";
-    this.#status = "Type a prompt and press Enter · ↑/↓ scroll · Ctrl+C quit";
+    this.#status = `Type a prompt and press Enter · ${activeControls}`;
     this.#startInputCursorBlink();
     this.#paint();
 
@@ -209,9 +214,14 @@ export class TerminalRenderer {
           case "down":
             this.#handleScroll(key.type);
             break;
-          case "ctrl-r":
+          case "page-up":
+          case "page-down":
+            this.#handlePageScroll(key.type);
+            break;
+          case "ctrl-l":
             this.#repaint();
             break;
+          case "escape":
           case "ctrl-c":
             this.#stopInputCursorBlink();
             this.#stop();
@@ -280,8 +290,8 @@ export class TerminalRenderer {
       this.#status = this.#interrupted
         ? "Interrupted"
         : options?.continueSession
-          ? "Done · Enter another prompt · ↑/↓ scroll · Ctrl+C quit"
-          : "Done · ↑/↓ scroll · q/Ctrl+C quit";
+          ? `Done · Enter another prompt · ${activeControls}`
+          : `Done · ${doneControls}`;
       this.#paint();
       await this.#waitForExit(options);
 
@@ -303,7 +313,7 @@ export class TerminalRenderer {
   ): Promise<AgentTUIToolApprovalResponse> {
     this.#start(options);
     this.#inputActive = false;
-    this.#status = `Approve ${formatToolApprovalTitle(request)}? y/n · ↑/↓ scroll · Ctrl+C quit`;
+    this.#status = `Approve ${formatToolApprovalTitle(request)}? y/n · ${activeControls}`;
     this.#interrupted = false;
     this.#paint();
 
@@ -316,12 +326,12 @@ export class TerminalRenderer {
             const value = key.value.toLowerCase();
 
             if (value === "y") {
-              this.#status = "Approved · Processing input... ↑/↓ scroll · Ctrl+C quit";
+              this.#status = `Approved · ${processingStatus}`;
               this.#detachInput();
               this.#paint();
               resolve({ approved: true });
             } else if (value === "n") {
-              this.#status = "Denied · Processing input... ↑/↓ scroll · Ctrl+C quit";
+              this.#status = `Denied · ${processingStatus}`;
               this.#detachInput();
               this.#paint();
               resolve({ approved: false, reason: "Denied by user." });
@@ -332,9 +342,14 @@ export class TerminalRenderer {
           case "down":
             this.#handleScroll(key.type);
             break;
-          case "ctrl-r":
+          case "page-up":
+          case "page-down":
+            this.#handlePageScroll(key.type);
+            break;
+          case "ctrl-l":
             this.#repaint();
             break;
+          case "escape":
           case "ctrl-c":
             this.#interrupted = true;
             this.#stop();
@@ -414,9 +429,14 @@ export class TerminalRenderer {
       case "down":
         this.#handleScroll(key.type);
         break;
-      case "ctrl-r":
+      case "page-up":
+      case "page-down":
+        this.#handlePageScroll(key.type);
+        break;
+      case "ctrl-l":
         this.#repaint();
         break;
+      case "escape":
       case "ctrl-c":
         this.#interrupted = true;
         this.#resolveStreamInterrupt?.();
@@ -426,10 +446,14 @@ export class TerminalRenderer {
     }
   }
 
-  #handleScroll(direction: "up" | "down") {
-    const delta = direction === "up" ? 1 : -1;
+  #handleScroll(direction: "up" | "down", lines = 1) {
+    const delta = direction === "up" ? lines : -lines;
     this.#scrollOffset = this.#clampScrollOffset(this.#scrollOffset + delta);
     this.#paint();
+  }
+
+  #handlePageScroll(direction: "page-up" | "page-down") {
+    this.#handleScroll(direction === "page-up" ? "up" : "down", this.#bodyContentHeight());
   }
 
   #startInputCursorBlink() {
@@ -736,8 +760,16 @@ export class TerminalRenderer {
           case "down":
             this.#handleScroll(key.type);
             break;
-          case "ctrl-r":
+          case "page-up":
+          case "page-down":
+            this.#handlePageScroll(key.type);
+            break;
+          case "ctrl-l":
             this.#repaint();
+            break;
+          case "escape":
+            this.#detachInput();
+            resolve();
             break;
           case "character":
             if (key.value === "q") {
@@ -1259,10 +1291,12 @@ export function parseKey(chunk: Buffer): TerminalKey {
   const value = chunk.toString("utf8");
 
   switch (value) {
-    case "\u0012":
-      return { type: "ctrl-r" };
+    case "\u000c":
+      return { type: "ctrl-l" };
     case "\u0003":
       return { type: "ctrl-c" };
+    case "\x1B":
+      return { type: "escape" };
     case "\r":
     case "\n":
       return { type: "enter" };
@@ -1273,6 +1307,10 @@ export function parseKey(chunk: Buffer): TerminalKey {
       return { type: "up" };
     case "\x1B[B":
       return { type: "down" };
+    case "\x1B[5~":
+      return { type: "page-up" };
+    case "\x1B[6~":
+      return { type: "page-down" };
     default:
       if (value >= " " && value !== "\x7F") {
         return { type: "character", value };
